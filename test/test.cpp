@@ -1,17 +1,55 @@
 #include "../src/atomic_index_pool.h"
 #include "../third-party/nadir/src/nadir.h"
 
-#include <memory>
-#include <stdio.h>
-#include <assert.h>
+#include <stdlib.h>
 
 #include "../third-party/jctest/src/jc_test.h"
 
-#define ALIGN_SIZE(x, align) (((x) + ((align)-1)) & ~((align)-1))
-
-static int AtomicCAS(long volatile* store, long compare, long value)
+TEST(Nadir, AtomicFilledIndexPool)
 {
-	return nadir::AtomicCAS32(store, compare, value) ? 1 : 0;
+    HAtomicIndexPool pool = AtomicIndexPool_Create(malloc(AtomicIndexPool_GetSize(15)), 15, nadir::AtomicAdd32, nadir::AtomicCAS32);
+
+    for(uint32_t i = 1; i <= 15; ++i)
+    {
+        ASSERT_EQ(i, AtomicIndexPool_Pop(pool));
+    }
+
+    ASSERT_EQ(0u, AtomicIndexPool_Pop(pool));
+
+    for(uint32_t i = 15; i >= 1; --i)
+    {
+        AtomicIndexPool_Push(pool, i);
+    }
+
+    for(uint32_t i = 1; i <= 15; ++i)
+    {
+        ASSERT_EQ(i, AtomicIndexPool_Pop(pool));
+    }
+
+    free(pool);
+}
+
+TEST(Nadir, AtomicEmptyIndexPool)
+{
+    HAtomicIndexPool pool = AtomicIndexPool_Create(malloc(AtomicIndexPool_GetSize(16)), 0, nadir::AtomicAdd32, nadir::AtomicCAS32);
+
+    AtomicIndexPool_Push(pool, 1);
+    ASSERT_EQ(1u, AtomicIndexPool_Pop(pool));
+    ASSERT_EQ(0u, AtomicIndexPool_Pop(pool));
+
+    AtomicIndexPool_Push(pool, 1);
+    AtomicIndexPool_Push(pool, 2);
+    AtomicIndexPool_Push(pool, 3);
+    ASSERT_EQ(3u, AtomicIndexPool_Pop(pool));
+    ASSERT_EQ(2u, AtomicIndexPool_Pop(pool));
+    AtomicIndexPool_Push(pool, 2);
+    AtomicIndexPool_Push(pool, 3);
+    ASSERT_EQ(3u, AtomicIndexPool_Pop(pool));
+    ASSERT_EQ(2u, AtomicIndexPool_Pop(pool));
+    ASSERT_EQ(1u, AtomicIndexPool_Pop(pool));
+    ASSERT_EQ(0u, AtomicIndexPool_Pop(pool));
+
+    free(pool);
 }
 
 TEST(Nadir, TestAtomicFiloThreads)
@@ -21,7 +59,7 @@ TEST(Nadir, TestAtomicFiloThreads)
 
 	for (uint32_t t = 0; t < 5; ++t)
 	{
-        HAtomicIndexPool pool = CreateAtomicIndexPool(malloc(GetAtomicIndexPoolSize(ENTRY_COUNT)), ENTRY_COUNT, 0, nadir::AtomicAdd32, AtomicCAS);
+        HAtomicIndexPool pool = AtomicIndexPool_Create(malloc(AtomicIndexPool_GetSize(ENTRY_COUNT)), 0, nadir::AtomicAdd32, nadir::AtomicCAS32);
 		struct Data
 		{
 			Data()
@@ -43,7 +81,7 @@ TEST(Nadir, TestAtomicFiloThreads)
 				FiloThread* t = (FiloThread*)context;
 				while ((*t->m_InsertCount) > 0)
 				{
-					uint32_t index = Pop(t->m_Pool);
+					uint32_t index = AtomicIndexPool_Pop(t->m_Pool);
 					assert(index <= t->m_EntryCount);
 					if (index != 0)
 					{
@@ -55,7 +93,7 @@ TEST(Nadir, TestAtomicFiloThreads)
 						{
 							busy_counter = nadir::AtomicAdd32(&t->m_DataArray[index - 1].m_Busy, -1);
 							assert(0 == busy_counter);
-							Push(t->m_Pool, index);
+							AtomicIndexPool_Push(t->m_Pool, index);
 						}
 						else
 						{
@@ -90,7 +128,7 @@ TEST(Nadir, TestAtomicFiloThreads)
 
 		for (uint32_t i = 1; i <= ENTRY_COUNT; ++i)
 		{
-			Push(pool, i);
+			AtomicIndexPool_Push(pool, i);
 		}
 
 		uint32_t untouched_count = 0;
@@ -138,51 +176,4 @@ TEST(Nadir, TestAtomicFiloThreads)
         free(pool);
 	}
     #undef ENTRY_BREAK_COUNT
-}
-
-TEST(Nadir, AtomicFilledIndexPool)
-{
-    HAtomicIndexPool pool = CreateAtomicIndexPool(malloc(GetAtomicIndexPoolSize(15)), 15, 1, nadir::AtomicAdd32, AtomicCAS);
-
-    for(uint32_t i = 1; i <= 15; ++i)
-    {
-        ASSERT_EQ(i, Pop(pool));
-    }
-
-    ASSERT_EQ(0u, Pop(pool));
-
-    for(uint32_t i = 15; i >= 1; --i)
-    {
-        Push(pool, i);
-    }
-
-    for(uint32_t i = 1; i <= 15; ++i)
-    {
-        ASSERT_EQ(i, Pop(pool));
-    }
-
-    free(pool);
-}
-
-TEST(Nadir, AtomicEmptyIndexPool)
-{
-    HAtomicIndexPool pool = CreateAtomicIndexPool(malloc(GetAtomicIndexPoolSize(16)), 16, 0, nadir::AtomicAdd32, AtomicCAS);
-
-    Push(pool, 1);
-    ASSERT_EQ(1u, Pop(pool));
-    ASSERT_EQ(0u, Pop(pool));
-
-    Push(pool, 1);
-    Push(pool, 2);
-    Push(pool, 3);
-    ASSERT_EQ(3u, Pop(pool));
-    ASSERT_EQ(2u, Pop(pool));
-    Push(pool, 2);
-    Push(pool, 3);
-    ASSERT_EQ(3u, Pop(pool));
-    ASSERT_EQ(2u, Pop(pool));
-    ASSERT_EQ(1u, Pop(pool));
-    ASSERT_EQ(0u, Pop(pool));
-
-    free(pool);
 }
