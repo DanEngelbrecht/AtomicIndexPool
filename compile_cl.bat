@@ -13,7 +13,7 @@ IF NOT EXIST build (
 
 pushd build
 
-cl.exe /nologo /Zi /O2 /D_CRT_SECURE_NO_WARNINGS /D_HAS_EXCEPTIONS=0 /EHsc /W4 ..\test\test.cpp ..\third-party\nadir\src\nadir.cpp ..\test\main.cpp /link  /out:test.exe /pdb:test.pdb
+cl.exe /nologo /Zi /O2 /D_CRT_SECURE_NO_WARNINGS /D_HAS_EXCEPTIONS=0 /EHsc /W4 ..\test\test.cpp ..\test\test_c99.c ..\third-party\nadir\src\nadir.cpp ..\test\main.cpp /link  /out:test.exe /pdb:test.pdb
 
 popd
 
