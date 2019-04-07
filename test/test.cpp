@@ -9,6 +9,11 @@
 
 #define ALIGN_SIZE(x, align) (((x) + ((align)-1)) & ~((align)-1))
 
+static int AtomicCAS(long volatile* store, long compare, long value)
+{
+	return nadir::AtomicCAS32(store, compare, value) ? 1 : 0;
+}
+
 TEST(Nadir, TestAtomicFiloThreads)
 {
     #define ENTRY_BREAK_COUNT 311
@@ -16,7 +21,7 @@ TEST(Nadir, TestAtomicFiloThreads)
 
 	for (uint32_t t = 0; t < 5; ++t)
 	{
-        HAtomicIndexPool pool = CreateAtomicIndexPool(malloc(GetAtomicIndexPoolSize(ENTRY_COUNT)), ENTRY_COUNT, false, nadir::AtomicAdd32, nadir::AtomicCAS32);
+        HAtomicIndexPool pool = CreateAtomicIndexPool(malloc(GetAtomicIndexPoolSize(ENTRY_COUNT)), ENTRY_COUNT, 0, nadir::AtomicAdd32, AtomicCAS);
 		struct Data
 		{
 			Data()
@@ -137,7 +142,7 @@ TEST(Nadir, TestAtomicFiloThreads)
 
 TEST(Nadir, AtomicFilledIndexPool)
 {
-    HAtomicIndexPool pool = CreateAtomicIndexPool(malloc(GetAtomicIndexPoolSize(15)), 15, true, nadir::AtomicAdd32, nadir::AtomicCAS32);
+    HAtomicIndexPool pool = CreateAtomicIndexPool(malloc(GetAtomicIndexPoolSize(15)), 15, 1, nadir::AtomicAdd32, AtomicCAS);
 
     for(uint32_t i = 1; i <= 15; ++i)
     {
@@ -161,7 +166,7 @@ TEST(Nadir, AtomicFilledIndexPool)
 
 TEST(Nadir, AtomicEmptyIndexPool)
 {
-    HAtomicIndexPool pool = CreateAtomicIndexPool(malloc(GetAtomicIndexPoolSize(16)), 16, false, nadir::AtomicAdd32, nadir::AtomicCAS32);
+    HAtomicIndexPool pool = CreateAtomicIndexPool(malloc(GetAtomicIndexPoolSize(16)), 16, 0, nadir::AtomicAdd32, AtomicCAS);
 
     Push(pool, 1);
     ASSERT_EQ(1u, Pop(pool));

@@ -12,11 +12,18 @@ extern "C" {
 typedef struct AtomicIndexPool_private* HAtomicIndexPool;
 
 typedef long (*AtomicIndexPool_AtomicAdd)(long volatile* value, long amount);
-typedef bool (*AtomicIndexPool_AtomicCAS)(long volatile* store, long compare, long value);
+typedef int (*AtomicIndexPool_AtomicCAS)(long volatile* store, long compare, long value);
 
+// Get the memory size required for the index pool
 inline size_t AtomicIndexPool_GetSize(uint32_t index_count);
-inline HAtomicIndexPool AtomicIndexPool_Create(void* mem, uint32_t index_count, bool fill, AtomicIndexPool_AtomicAdd atomic_add, AtomicIndexPool_AtomicCAS atomic_cas);
+
+// Create an index pool at memory location mem, mem must be at least AtomicIndexPool_GetSize() big
+inline HAtomicIndexPool AtomicIndexPool_Create(void* mem, uint32_t index_count, int fill, AtomicIndexPool_AtomicAdd atomic_add, AtomicIndexPool_AtomicCAS atomic_cas);
+
+// Push a 1-based index to the pool
 inline void AtomicIndexPool_Push(HAtomicIndexPool pool, uint32_t index);
+
+// Pop a 1-based index from the pool, returns zero if the pool is empty
 inline uint32_t AtomicIndexPool_Pop(HAtomicIndexPool pool);
 
 
@@ -37,10 +44,10 @@ struct AtomicIndexPool_private
 
 inline size_t GetAtomicIndexPoolSize(uint32_t index_count)
 {
-    return sizeof(AtomicIndexPool_private) + sizeof(long volatile) * index_count;
+    return sizeof(struct AtomicIndexPool_private) + sizeof(long volatile) * index_count;
 }
 
-inline HAtomicIndexPool CreateAtomicIndexPool(void* mem, uint32_t index_count, bool fill, AtomicIndexPool_AtomicAdd atomic_add, AtomicIndexPool_AtomicCAS atomic_cas)
+inline HAtomicIndexPool CreateAtomicIndexPool(void* mem, uint32_t index_count, int fill, AtomicIndexPool_AtomicAdd atomic_add, AtomicIndexPool_AtomicCAS atomic_cas)
 {
     HAtomicIndexPool result = (HAtomicIndexPool)mem;
     result->m_Generation = 0;
@@ -79,7 +86,7 @@ inline void Push(HAtomicIndexPool pool, uint32_t index)
 
 inline uint32_t Pop(HAtomicIndexPool pool)
 {
-    while(true)
+    while(1)
     {
         uint32_t current_head = (uint32_t)pool->m_Head[0];
         uint32_t head_index = current_head & ATOMIC_INDEX_POOL_INDEX_MASK_PRIVATE;
