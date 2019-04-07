@@ -6,7 +6,7 @@
 # AtomicIndexPool
 Single header library for an Atomic (lock-free) index pool
 
-Minimal dependencies - only requires `<stdint.h>`
+Minimal dependencies - only requires `<stdint.h>` and `<stddef.h>`.
 
 You provide two functions that are platform specific
  - `AtomicIndexPool_AtomicAdd` Atomically adds a 32-bit signed integer to another 32-bit signed integer and returns the result
