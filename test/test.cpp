@@ -5,9 +5,9 @@
 
 #include "../third-party/jctest/src/jc_test.h"
 
-TEST(Nadir, AtomicFilledIndexPool)
+TEST(AtomicIndexPool, AtomicFilledIndexPool)
 {
-    HAtomicIndexPool pool = AtomicIndexPool_Create(malloc(AtomicIndexPool_GetSize(15)), 15, nadir::AtomicAdd32, nadir::AtomicCAS32);
+    HAtomicIndexPool pool = AtomicIndexPool_Create(malloc(AtomicIndexPool_GetSize(15)), 15);
 
     for(uint32_t i = 1; i <= 15; ++i)
     {
@@ -29,9 +29,9 @@ TEST(Nadir, AtomicFilledIndexPool)
     free(pool);
 }
 
-TEST(Nadir, AtomicEmptyIndexPool)
+TEST(AtomicIndexPool, AtomicEmptyIndexPool)
 {
-    HAtomicIndexPool pool = AtomicIndexPool_Create(malloc(AtomicIndexPool_GetSize(16)), 0, nadir::AtomicAdd32, nadir::AtomicCAS32);
+    HAtomicIndexPool pool = AtomicIndexPool_Create(malloc(AtomicIndexPool_GetSize(16)), 0);
 
     AtomicIndexPool_Push(pool, 1);
     ASSERT_EQ(1u, AtomicIndexPool_Pop(pool));
@@ -52,14 +52,14 @@ TEST(Nadir, AtomicEmptyIndexPool)
     free(pool);
 }
 
-TEST(Nadir, TestAtomicFiloThreads)
+TEST(AtomicIndexPool, TestAtomicFiloThreads)
 {
     #define ENTRY_BREAK_COUNT 311
     static const uint32_t ENTRY_COUNT = 391;
 
 	for (uint32_t t = 0; t < 5; ++t)
 	{
-        HAtomicIndexPool pool = AtomicIndexPool_Create(malloc(AtomicIndexPool_GetSize(ENTRY_COUNT)), 0, nadir::AtomicAdd32, nadir::AtomicCAS32);
+        HAtomicIndexPool pool = AtomicIndexPool_Create(malloc(AtomicIndexPool_GetSize(ENTRY_COUNT)), 0);
 		struct Data
 		{
 			Data()
