@@ -5,20 +5,17 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif // __cplusplus
 
 /////////////// PUBLIC API
 
 typedef struct AtomicIndexPool_private* HAtomicIndexPool;
 
-typedef long (*AtomicIndexPool_AtomicAdd)(long volatile* value, long amount);
-typedef long (*AtomicIndexPool_AtomicCAS)(long volatile* store, long compare, long value);
-
 // Get the memory size required for the index pool
 inline size_t AtomicIndexPool_GetSize(uint32_t index_count);
 
 // Create an index pool at memory location mem, mem must be at least AtomicIndexPool_GetSize() big
-inline HAtomicIndexPool AtomicIndexPool_Create(void* mem, uint32_t fill_count, AtomicIndexPool_AtomicAdd atomic_add, AtomicIndexPool_AtomicCAS atomic_cas);
+inline HAtomicIndexPool AtomicIndexPool_Create(void* mem, uint32_t fill_count);
 
 // Push a 1-based index to the pool
 inline void AtomicIndexPool_Push(HAtomicIndexPool pool, uint32_t index);
@@ -30,6 +27,36 @@ inline uint32_t AtomicIndexPool_Pop(HAtomicIndexPool pool);
 
 /////////////// PRIVATE IMPLEMENTATION
 
+#if !defined(ATOMICINDEXPOOL_ATOMICADD)
+    #if defined(_MSC_VER)
+        #if !defined(_WINDOWS_)
+            #define WIN32_LEAN_AND_MEAN
+            #include <Windows.h>
+            #undef WIN32_LEAN_AND_MEAN
+        #endif
+
+        #define ATOMICINDEXPOOL_ATOMICADD(value, amount) (_InterlockedExchangeAdd(value, amount) + amount)
+    #endif
+    #if defined(__clang__) || defined(__GNUC__)
+        #define ATOMICINDEXPOOL_ATOMICADD(value, amount) (__sync_fetch_and_add(value, amount) + amount)
+    #endif
+#endif
+
+#if !defined(ATOMICINDEXPOOL_ATOMICCAS)
+    #if defined(_MSC_VER)
+        #if !defined(_WINDOWS_)
+            #define WIN32_LEAN_AND_MEAN
+            #include <Windows.h>
+            #undef WIN32_LEAN_AND_MEAN
+        #endif
+
+        #define ATOMICINDEXPOOL_ATOMICCAS(store, compare, value) _InterlockedCompareExchange(store, value, compare)
+    #endif
+    #if defined(__clang__) || defined(__GNUC__)
+        #define ATOMICINDEXPOOL_ATOMICCAS(store, compare, value) __sync_val_compare_and_swap(store, compare, value)
+    #endif
+#endif
+
 static const uint32_t ATOMIC_INDEX_POOL_GENERATION_MASK_PRIVATE  = 0xff800000u;
 static const uint32_t ATOMIC_INDEX_POOL_GENERATION_SHIFT_PRIVATE = 23u;
 static const uint32_t ATOMIC_INDEX_POOL_INDEX_MASK_PRIVATE       = 0x007fffffu;
@@ -37,8 +64,6 @@ static const uint32_t ATOMIC_INDEX_POOL_INDEX_MASK_PRIVATE       = 0x007fffffu;
 struct AtomicIndexPool_private
 {
     long volatile m_Generation;
-    AtomicIndexPool_AtomicAdd m_AtomicAdd;
-    AtomicIndexPool_AtomicCAS m_AtomicCAS;
     long volatile m_Head[1];
 };
 
@@ -47,7 +72,7 @@ inline size_t AtomicIndexPool_GetSize(uint32_t index_count)
     return sizeof(struct AtomicIndexPool_private) + sizeof(long volatile) * index_count;
 }
 
-inline HAtomicIndexPool AtomicIndexPool_Create(void* mem, uint32_t fill_count, AtomicIndexPool_AtomicAdd atomic_add, AtomicIndexPool_AtomicCAS atomic_cas)
+inline HAtomicIndexPool AtomicIndexPool_Create(void* mem, uint32_t fill_count)
 {
     HAtomicIndexPool result = (HAtomicIndexPool)mem;
     result->m_Generation = 0;
@@ -64,20 +89,18 @@ inline HAtomicIndexPool AtomicIndexPool_Create(void* mem, uint32_t fill_count, A
     {
         result->m_Head[0] = 0;
     }
-    result->m_AtomicAdd = atomic_add;
-    result->m_AtomicCAS = atomic_cas;
     return result;
 }
 
 inline void AtomicIndexPool_Push(HAtomicIndexPool pool, uint32_t index)
 {
-    uint32_t gen = (((uint32_t)pool->m_AtomicAdd(&pool->m_Generation, 1)) << ATOMIC_INDEX_POOL_GENERATION_SHIFT_PRIVATE) & ATOMIC_INDEX_POOL_GENERATION_MASK_PRIVATE;
+    uint32_t gen = (((uint32_t)ATOMICINDEXPOOL_ATOMICADD(&pool->m_Generation, 1)) << ATOMIC_INDEX_POOL_GENERATION_SHIFT_PRIVATE) & ATOMIC_INDEX_POOL_GENERATION_MASK_PRIVATE;
     uint32_t new_head = gen | index;
 
     uint32_t current_head = (uint32_t)pool->m_Head[0];
     pool->m_Head[index] = (long)(current_head & ATOMIC_INDEX_POOL_INDEX_MASK_PRIVATE);
 
-    while (pool->m_AtomicCAS(&pool->m_Head[0], (long)current_head, (long)new_head) != (long)current_head)
+    while (ATOMICINDEXPOOL_ATOMICCAS(&pool->m_Head[0], (long)current_head, (long)new_head) != (long)current_head)
     {
         current_head = (uint32_t)pool->m_Head[0];
         pool->m_Head[index] = (long)(current_head & ATOMIC_INDEX_POOL_INDEX_MASK_PRIVATE);
@@ -98,7 +121,7 @@ inline uint32_t AtomicIndexPool_Pop(HAtomicIndexPool pool)
         uint32_t next = (uint32_t)pool->m_Head[head_index];
 		uint32_t new_head = (current_head & ATOMIC_INDEX_POOL_GENERATION_MASK_PRIVATE) | next;
 
-        if (pool->m_AtomicCAS(&pool->m_Head[0], (long)current_head, (long)new_head) == (long)current_head)
+        if (ATOMICINDEXPOOL_ATOMICCAS(&pool->m_Head[0], (long)current_head, (long)new_head) == (long)current_head)
         {
             return head_index;
         }
@@ -107,4 +130,4 @@ inline uint32_t AtomicIndexPool_Pop(HAtomicIndexPool pool)
 
 #ifdef __cplusplus
 }
-#endif
+#endif // __cplusplus
