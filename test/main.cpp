@@ -4,6 +4,5 @@
 int main(int argc, char** argv)
 {
     jc_test_init(&argc, argv);
-    jc_test_run_all();
-    return 0;
+    return jc_test_run_all();
 }
