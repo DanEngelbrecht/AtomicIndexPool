@@ -6,7 +6,9 @@
 # AtomicIndexPool
 Single header library for an Atomic (lock-free) index pool
 
-Minimal dependencies - only requires `<stdint.h>` and `<stddef.h>`, the default (optional) MSVC implementation depends on Windows.h.
+Builds with MSVC, Clang and GCC.
+
+Minimal dependencies - only requires `<stdint.h>` and `<stddef.h>`, the default (optional) MSVC implementation depends on `<Windows.h>`.
 
 The default implementations for the atomic functions can be overridden with your own implementation by overriding the macros
  - `ATOMICINDEXPOOL_ATOMICADD` Atomically adds a 32-bit signed integer to another 32-bit signed integer and returns the result
